@@ -18,4 +18,4 @@
 s3sync
 
 # configuration
-configs/**.conf
+configs/**.yaml

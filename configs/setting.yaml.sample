@@ -1,0 +1,6 @@
+bucket_name: sample_bucket
+local_dir: ./dir
+s3_dir: /dir
+credential:
+    apikey: **********
+    secretkey: *********
