@@ -1,16 +1,17 @@
 package main
 
 import (
-    "bytes"
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
+	"s3sync/configs"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 func main() {
@@ -31,36 +32,40 @@ func _main() {
 	os.Exit(1)
     }
 
+    // load setting.yaml
+    s := configs.Load("./configs/setting.yaml")
+
+    //ls(s)
+    //os.Exit(0)
+
     switch os.Args[1] {
     case "upload":
 	upload.Parse(os.Args[2:])
 	fmt.Println("upload subcommand.")
 	fmt.Println("   force:", *forceUpload)
 	fmt.Println("   mode:", *modeUpload)
-	s3sync_upload()
+	s3sync_upload(s)
     case "download":
 	download.Parse(os.Args[2:])
 	fmt.Println("download subcommand")
 	fmt.Println("   force:", *forceDownload)
 	fmt.Println("   mode:", *modeDownload)
-	s3sync_download()
+	s3sync_download(s)
     default:
 	fmt.Println("expected 'upload' or 'download' subcommands.")
 	os.Exit(1)
     }
-
-    ls()
 }
 
-func s3sync_upload() {
+func s3sync_upload(s *configs.Setting) {
     client := client()
     uploader := manager.NewUploader(client, func(u *manager.Uploader) {
 	u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
     })
 
     _, err := uploader.Upload(context.TODO(), &s3.PutObjectInput {
-	Bucket: aws.String("s3sync-cli"),
-	Key: aws.String("key1"),
+	Bucket: aws.String(s.BucketName),
+	Key: aws.String("test/bbb.txt"),
 	Body: bytes.NewReader([]byte("hoge uga ahe")),
     })
     if err != nil {
@@ -68,7 +73,7 @@ func s3sync_upload() {
     }
 }
 
-func s3sync_download() {
+func s3sync_download(s *configs.Setting) {
     f, err := os.Create("download.txt")
     if err != nil {
 	panic(err)
@@ -81,20 +86,21 @@ func s3sync_download() {
 	d.PartSize = 64 * 1024 * 1024
     })
     n ,err := downloader.Download(context.TODO(), f, &s3.GetObjectInput {
-	Bucket: aws.String("s3sync-cli"),
-	Key: aws.String("key1"),
+	Bucket: aws.String(s.BucketName),
+	Key: aws.String("test/aaa.txt"),
     })
     if err != nil {
 	panic(err)
     }
-    fmt.Println("download %d bytes\n", n)
+    fmt.Printf("download %d bytes\n", n)
 }
 
-func ls() {
+func ls(s *configs.Setting) {
     client := client()
 
     output, err := client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input {
-	Bucket: aws.String("s3sync-cli"),
+	Bucket: aws.String(s.BucketName),
+	Prefix: aws.String(s.S3Dir),
     })
     if err != nil {
 	panic(err)
