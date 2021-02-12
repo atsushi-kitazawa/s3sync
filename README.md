@@ -17,7 +17,7 @@ This is a CLI tool that synchronizes the state of your local directory with AWS 
 
 * Upload and sync local a file.
 ```
-% s3sync upload file
+% s3sync upload -m file
 file list> aaa.txt
 bbb.txt
 ccc.txt
@@ -26,7 +26,7 @@ ccc.txt
 
 * Download and sync s3 a file.
 ```
-% s3sync download file
+% s3sync download -m file
 file list> AAA.txt
 BBB.txt
 CCC.txt
