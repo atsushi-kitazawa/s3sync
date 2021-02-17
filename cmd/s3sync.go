@@ -75,9 +75,9 @@ func s3sync_upload(s *configs.Setting) {
     })
 
     // upload
-    list := util.ListDir(s.LocalDir)
-    fmt.Println("list>", list)
-    for _, file := range list {
+    uploadlist := util.ListDir(s.LocalDir)
+    //fmt.Println("list>", uploadlist)
+    for _, file := range uploadlist {
 	body, err := os.Open(s.LocalDir + file)
 	if err != nil {
 	    panic(err)
@@ -95,17 +95,17 @@ func s3sync_upload(s *configs.Setting) {
 
     // delete
     s3List := s3sync_ls(s)
-    fmt.Println("s3list>", s3List)
+    //fmt.Println("s3list>", s3List)
     delList := make([]types.ObjectIdentifier, 0)
     for _, val := range s3List {
-	if !contains(list, strings.TrimPrefix(val, s.S3Dir)) {
+	if !contains(uploadlist, strings.TrimPrefix(val, s.S3Dir)) {
 	    object := types.ObjectIdentifier{
 		Key: aws.String(val),
 	    }
 	    delList = append(delList, object)
 	}
     }
-    fmt.Println(delList)
+    //fmt.Println(delList)
     input := &s3.DeleteObjectsInput {
         Bucket: aws.String(s.BucketName),
         Delete: &types.Delete {
@@ -126,10 +126,10 @@ func s3sync_download(s *configs.Setting) {
 	d.PartSize = 64 * 1024 * 1024
     })
 
-    // get download list from ls
+    // get download list from ls. This List contains directory.
     downloadList := s3sync_ls(s)
 
-    // remove directory
+    // remove directory in list
     downloadListRemoveDir := make([]string, 0)
     for _, d := range downloadList {
 	if !strings.HasSuffix(d, "/") {
@@ -156,6 +156,19 @@ func s3sync_download(s *configs.Setting) {
 	}
 	fmt.Printf("download %d bytes\n", n)
     }
+
+    localList := util.ListDir(s.LocalDir)
+    //fmt.Println("localList>", localList)
+    //fmt.Println("downloadList>", downloadList)
+    //delList := make([]string, 0)
+    for _, val := range localList {
+	if !contains(downloadList, s.S3Dir + val) {
+	    //fmt.Println("val>", val)
+	    if err := os.Remove(s.LocalDir + val); err != nil {
+		fmt.Printf("failed remove %s\n", val)
+	    }
+	}
+    }
 }
 
 func s3sync_ls(s *configs.Setting) []string {
@@ -171,7 +184,7 @@ func s3sync_ls(s *configs.Setting) []string {
 
     ret := make([]string, 0)
     for _, object := range output.Contents {
-	fmt.Printf("key=%s, size=%d \n", aws.ToString(object.Key), object.Size)
+	//fmt.Printf("key=%s, size=%d \n", aws.ToString(object.Key), object.Size)
 	ret = append(ret, aws.ToString(object.Key))
     }
 
@@ -189,7 +202,7 @@ func client() *s3.Client {
 }
 
 func contains(s []string, item string) bool {
-    fmt.Println("item>", item)
+    //fmt.Println("item>", item)
     for _, val := range s {
 	if val == item {
 	    return true
