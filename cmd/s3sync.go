@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 func main() {
@@ -73,13 +74,14 @@ func s3sync_upload(s *configs.Setting) {
 	u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
     })
 
+    // upload
     list := util.ListDir(s.LocalDir)
+    fmt.Println("list>", list)
     for _, file := range list {
 	body, err := os.Open(s.LocalDir + file)
 	if err != nil {
 	    panic(err)
 	}
-	//fmt.Println(file)
 
 	_, err = uploader.Upload(context.TODO(), &s3.PutObjectInput {
 	    Bucket: aws.String(s.BucketName),
@@ -90,8 +92,32 @@ func s3sync_upload(s *configs.Setting) {
 	    panic(err)
 	}
     }
-}
 
+    // delete
+    s3List := s3sync_ls(s)
+    fmt.Println("s3list>", s3List)
+    delList := make([]types.ObjectIdentifier, 0)
+    for _, val := range s3List {
+	if !contains(list, strings.TrimPrefix(val, s.S3Dir)) {
+	    object := types.ObjectIdentifier{
+		Key: aws.String(val),
+	    }
+	    delList = append(delList, object)
+	}
+    }
+    fmt.Println(delList)
+    input := &s3.DeleteObjectsInput {
+        Bucket: aws.String(s.BucketName),
+        Delete: &types.Delete {
+            delList,
+            true,
+        },
+    }
+    _, err := client.DeleteObjects(context.TODO(), input)
+    if err != nil {
+        panic(err)
+    }
+}
 // maybe use BatchDownloadObject
 func s3sync_download(s *configs.Setting) {
     client := client()
@@ -160,4 +186,14 @@ func client() *s3.Client {
 
     client := s3.NewFromConfig(cfg)
     return client
+}
+
+func contains(s []string, item string) bool {
+    fmt.Println("item>", item)
+    for _, val := range s {
+	if val == item {
+	    return true
+	}
+    }
+    return false
 }
