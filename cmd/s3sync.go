@@ -18,21 +18,36 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+var (
+    upload flag.FlagSet
+    uploadForce bool
+    uploadMode string
+
+    download flag.FlagSet
+    downloadForce bool
+    downloadMode string
+
+    ls flag.FlagSet
+)
+
+func init() {
+    upload := flag.NewFlagSet("upload", flag.ExitOnError)
+    upload.BoolVar(&uploadForce, "f", false, "upload force")
+    upload.StringVar(&uploadMode, "m", "", "upload mode")
+
+    download := flag.NewFlagSet("download", flag.ExitOnError)
+    download.BoolVar(&downloadForce, "f", false, "download force")
+    download.StringVar(&downloadMode, "m", "", "download mode")
+
+    ls := flag.NewFlagSet("ls", flag.ExitOnError)
+    _ = ls
+}
+
 func main() {
     _main()
 }
 
 func _main() {
-    upload := flag.NewFlagSet("upload", flag.ExitOnError)
-    forceUpload := upload.Bool("f", false, "force upload")
-    modeUpload := upload.String("m", "", "mode")
-
-    download := flag.NewFlagSet("download", flag.ExitOnError)
-    forceDownload := download.Bool("f", false, "force download")
-    modeDownload := download.String("m", "", "mode")
-
-    ls := flag.NewFlagSet("ls", flag.ExitOnError)
-
     if len(os.Args) < 2 {
 	fmt.Println("expected 'upload' or 'download' subcommands.")
 	os.Exit(1)
@@ -45,14 +60,14 @@ func _main() {
     case "upload":
 	upload.Parse(os.Args[2:])
 	fmt.Println("upload subcommand.")
-	fmt.Println("   force:", *forceUpload)
-	fmt.Println("   mode:", *modeUpload)
+	fmt.Println("   force:", uploadForce)
+	fmt.Println("   mode:", uploadMode)
 	s3sync_upload(s)
     case "download":
 	download.Parse(os.Args[2:])
 	fmt.Println("download subcommand")
-	fmt.Println("   force:", *forceDownload)
-	fmt.Println("   mode:", *modeDownload)
+	fmt.Println("   force:", &downloadForce)
+	fmt.Println("   mode:", &downloadMode)
 	s3sync_download(s)
     case "ls":
 	ls.Parse(os.Args[2:])
@@ -106,6 +121,11 @@ func s3sync_upload(s *configs.Setting) {
 	}
     }
     //fmt.Println(delList)
+
+    if len(delList) == 0 {
+	return
+    }
+
     input := &s3.DeleteObjectsInput {
         Bucket: aws.String(s.BucketName),
         Delete: &types.Delete {
