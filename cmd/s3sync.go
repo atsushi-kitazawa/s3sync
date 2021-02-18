@@ -41,9 +41,6 @@ func _main() {
     // load setting.yaml
     s := configs.Load("./configs/setting.yaml")
 
-    //ls(s)
-    //os.Exit(0)
-
     switch os.Args[1] {
     case "upload":
 	upload.Parse(os.Args[2:])
@@ -60,7 +57,10 @@ func _main() {
     case "ls":
 	ls.Parse(os.Args[2:])
 	fmt.Println("ls subcommand")
-	s3sync_ls(s)
+	list := s3sync_ls(s)
+	for _, f := range list {
+	    fmt.Println(f)
+	}
     default:
 	fmt.Println("expected 'upload' or 'download', 'ls' subcommands.")
 	os.Exit(1)
