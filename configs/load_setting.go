@@ -14,6 +14,7 @@ type Setting struct {
 }
 
 type Credential struct {
+    Region string `yaml:"region"`
     Apikey string `yaml:"apikey"`
     Secretkey string `yaml:"secretkey"`
 }

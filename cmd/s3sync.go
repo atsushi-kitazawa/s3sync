@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"s3sync/cmd/util"
@@ -12,7 +13,8 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	_ "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -49,8 +51,7 @@ func main() {
 
 func _main() {
     if len(os.Args) < 2 {
-	fmt.Println("expected 'upload' or 'download' subcommands.")
-	os.Exit(1)
+	log.Fatalf("expected 'upload' or 'download' subcommands.")
     }
 
     // load setting.yaml
@@ -84,7 +85,7 @@ func _main() {
 
 // maybe use BatchUploadObject
 func s3sync_upload(s *configs.Setting) {
-    client := client()
+    client := client(s)
     uploader := manager.NewUploader(client, func(u *manager.Uploader) {
 	u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
     })
@@ -140,7 +141,7 @@ func s3sync_upload(s *configs.Setting) {
 }
 // maybe use BatchDownloadObject
 func s3sync_download(s *configs.Setting) {
-    client := client()
+    client := client(s)
 
     downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
 	d.PartSize = 64 * 1024 * 1024
@@ -192,7 +193,7 @@ func s3sync_download(s *configs.Setting) {
 }
 
 func s3sync_ls(s *configs.Setting) []string {
-    client := client()
+    client := client(s)
 
     output, err := client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input {
 	Bucket: aws.String(s.BucketName),
@@ -211,13 +212,11 @@ func s3sync_ls(s *configs.Setting) []string {
     return ret
 }
 
-func client() *s3.Client {
-    cfg, err := config.LoadDefaultConfig(context.TODO())
-    if err != nil {
-	panic(err)
-    }
-
-    client := s3.NewFromConfig(cfg)
+func client(s *configs.Setting) *s3.Client {
+    client := s3.New(s3.Options{
+	Region: s.Credential.Region,
+	Credentials: credentials.NewStaticCredentialsProvider(s.Credential.Apikey, s.Credential.Secretkey, ""),
+    })
     return client
 }
 
