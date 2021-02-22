@@ -21,11 +21,11 @@ import (
 )
 
 var (
-    upload flag.FlagSet
+    upload *flag.FlagSet
     uploadForce bool
     uploadMode string
 
-    download flag.FlagSet
+    download *flag.FlagSet
     downloadForce bool
     downloadMode string
 
@@ -33,13 +33,14 @@ var (
 )
 
 func init() {
-    upload := flag.NewFlagSet("upload", flag.ExitOnError)
+    fmt.Println("debug> call init()")
+    upload = flag.NewFlagSet("upload", flag.ExitOnError)
     upload.BoolVar(&uploadForce, "f", false, "upload force")
-    upload.StringVar(&uploadMode, "m", "", "upload mode")
+    upload.StringVar(&uploadMode, "m", "bulk", "upload mode")
 
-    download := flag.NewFlagSet("download", flag.ExitOnError)
+    download = flag.NewFlagSet("download", flag.ExitOnError)
     download.BoolVar(&downloadForce, "f", false, "download force")
-    download.StringVar(&downloadMode, "m", "", "download mode")
+    download.StringVar(&downloadMode, "m", "bulk", "download mode")
 
     ls := flag.NewFlagSet("ls", flag.ExitOnError)
     _ = ls
@@ -63,13 +64,28 @@ func _main() {
 	fmt.Println("upload subcommand.")
 	fmt.Println("   force:", uploadForce)
 	fmt.Println("   mode:", uploadMode)
-	s3sync_upload(s)
+	switch(uploadMode) {
+	case "bulk":
+	    s3sync_upload_bulk(s)
+	    break
+	case "file":
+	    fmt.Println("file mode")
+	default:
+	    s3sync_upload_bulk(s)
+	}
     case "download":
 	download.Parse(os.Args[2:])
 	fmt.Println("download subcommand")
-	fmt.Println("   force:", &downloadForce)
-	fmt.Println("   mode:", &downloadMode)
-	s3sync_download(s)
+	fmt.Println("   force:", downloadForce)
+	fmt.Println("   mode:", downloadMode)
+	switch(downloadMode) {
+	case "bulk":
+	    s3sync_download_bulk(s)
+	case "file":
+	    fmt.Println("file mode")
+	default:
+	    s3sync_download_bulk(s)
+	}
     case "ls":
 	ls.Parse(os.Args[2:])
 	fmt.Println("ls subcommand")
@@ -84,7 +100,7 @@ func _main() {
 }
 
 // maybe use BatchUploadObject
-func s3sync_upload(s *configs.Setting) {
+func s3sync_upload_bulk(s *configs.Setting) {
     client := client(s)
     uploader := manager.NewUploader(client, func(u *manager.Uploader) {
 	u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
@@ -139,8 +155,9 @@ func s3sync_upload(s *configs.Setting) {
         panic(err)
     }
 }
+
 // maybe use BatchDownloadObject
-func s3sync_download(s *configs.Setting) {
+func s3sync_download_bulk(s *configs.Setting) {
     client := client(s)
 
     downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
