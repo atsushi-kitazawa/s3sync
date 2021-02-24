@@ -2,6 +2,7 @@ package main
 
 import (
 	//"bytes"
+	_ "bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -18,6 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	"github.com/manifoldco/promptui"
 )
 
 var (
@@ -69,7 +72,7 @@ func _main() {
 	    s3sync_upload_bulk(s)
 	    break
 	case "file":
-	    fmt.Println("file mode")
+	    s3sync_upload_file(s)
 	default:
 	    s3sync_upload_bulk(s)
 	}
@@ -82,7 +85,7 @@ func _main() {
 	case "bulk":
 	    s3sync_download_bulk(s)
 	case "file":
-	    fmt.Println("file mode")
+	    s3sync_download_file(s)
 	default:
 	    s3sync_download_bulk(s)
 	}
@@ -156,10 +159,46 @@ func s3sync_upload_bulk(s *configs.Setting) {
     }
 }
 
+func s3sync_upload_file(s *configs.Setting) {
+    // get s3 client.
+    client := client(s)
+    uploader := manager.NewUploader(client, func(u *manager.Uploader) {
+	u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
+    })
+
+    // get upload file list.
+    uploadList := util.ListDir(s.LocalDir)
+
+    // prompt ui for user select file.
+    prompt := promptui.Select{
+	Label: "upload list",
+	Items: uploadList,
+    }
+    _, item, err := prompt.Run()
+    if err != nil {
+	log.Fatalln(err)
+    }
+    //fmt.Printf("select %s\n", item)
+
+    body, err := os.Open(s.LocalDir + item)
+    if err != nil {
+	panic(err)
+    }
+
+    _, err = uploader.Upload(context.TODO(), &s3.PutObjectInput {
+	Bucket: aws.String(s.BucketName),
+	Key: aws.String(s.S3Dir + item),
+	Body: body,
+    })
+    if err != nil {
+	panic(err)
+    }
+    fmt.Println(item)
+}
+
 // maybe use BatchDownloadObject
 func s3sync_download_bulk(s *configs.Setting) {
     client := client(s)
-
     downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
 	d.PartSize = 64 * 1024 * 1024
     })
@@ -207,6 +246,45 @@ func s3sync_download_bulk(s *configs.Setting) {
 	    }
 	}
     }
+}
+
+func s3sync_download_file(s *configs.Setting) {
+    // get s3 client.
+    client := client(s)
+    downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
+	d.PartSize = 64 * 1024 * 1024
+    })
+
+    // get download file list.
+    downloadList := s3sync_ls(s)
+
+    prompt := promptui.Select {
+	Label: "download list",
+	Items: downloadList,
+    }
+
+    _, item, err := prompt.Run()
+    if err != nil {
+	log.Fatalln(err)
+    }
+
+    localPath := s.LocalDir + strings.TrimPrefix(item, s.S3Dir)
+    os.MkdirAll(filepath.Dir(localPath), 0777)
+    localFile, err := os.Create(localPath)
+    if err != nil {
+	panic(err)
+    }
+    defer localFile.Close()
+
+    n ,err := downloader.Download(context.TODO(), localFile, &s3.GetObjectInput {
+	Bucket: aws.String(s.BucketName),
+	Key: aws.String(item),
+    })
+    if err != nil {
+	panic(err)
+    }
+    fmt.Printf("download %d bytes\n", n)
+
 }
 
 func s3sync_ls(s *configs.Setting) []string {
